@@ -52,6 +52,7 @@ ELEVATOR_INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/ElevatorIncid
 LINES_URL = "https://api.wmata.com/Rail.svc/json/jLines"
 STANDARD_ROUTES_URL = "https://api.wmata.com/TrainPositions/StandardRoutes?contentType=json"
 STATION_TO_STATION_URL = "https://api.wmata.com/Rail.svc/json/jSrcStationToDstStationInfo"
+ENTRANCES_URL = "https://api.wmata.com/Rail.svc/json/jStationEntrances"
 
 LINE_COLORS = {
     "RD": "#E6194B",
@@ -123,6 +124,13 @@ def clean_line(line):
         "color": LINE_COLORS[line["LineCode"]]
     }
 
+def clean_entrance(entrance):
+    return {
+        "name": entrance["Name"],
+        "lat": entrance["Lat"],
+        "lon": entrance["Lon"],
+        "description": entrance["Description"],
+    }
 
 # ENDPOINTS
 @app.get("/api/trains/{station}")
@@ -183,6 +191,17 @@ def get_trip(from_code: str, to_code: str):
         "off_peak_fare": info["RailFare"]["OffPeakTime"],
         "senior_fare": info["RailFare"]["SeniorDisabled"],
     }
+
+@app.get("/api/entrances/{station}")
+def get_entrances(station: str):
+    response = requests.get(
+        ENTRANCES_URL,
+        params={"StationCode": station.upper()},
+        headers={"api_key": os.environ["WMATA_API_KEY"]},
+        timeout=10,
+    )
+    response.raise_for_status()
+    return [clean_entrance(entrance) for entrance in response.json()["Entrances"]]
 
 @app.get("/")
 def home():
