@@ -24,6 +24,21 @@ async def lifespan(app: FastAPI):
     lines_res.raise_for_status()
     _static_cache["lines"] = [clean_line(l) for l in lines_res.json()["Lines"]]
 
+    routes_res = requests.get(STANDARD_ROUTES_URL, headers=headers, timeout=10)
+    routes_res.raise_for_status()
+    coords = {s["code"]: (s["lat"], s["lon"]) for s in _static_cache["stations"]}
+    routes = {}
+    for route in routes_res.json()["StandardRoutes"]:
+        if route["TrackNum"] != 1:
+            continue
+        code = route["LineCode"]
+        routes[code] = [
+            {"station_code": c["StationCode"], "lat": coords[c["StationCode"]][0], "lon": coords[c["StationCode"]][1]}
+            for c in route["TrackCircuits"]
+            if c["StationCode"] and c["StationCode"] in coords
+        ]
+    _static_cache["routes"] = routes
+
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -35,7 +50,7 @@ STATIONS_URL = "https://api.wmata.com/Rail.svc/json/jStations"
 INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/Incidents"
 ELEVATOR_INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/ElevatorIncidents?StationCode="
 LINES_URL = "https://api.wmata.com/Rail.svc/json/jLines"
-PATH_URL = "https://api.wmata.com/Rail.svc/json/jPath"
+STANDARD_ROUTES_URL = "https://api.wmata.com/TrainPositions/StandardRoutes?contentType=json"
 
 LINE_COLORS = {
     "RD": "#E6194B",
@@ -107,15 +122,6 @@ def clean_line(line):
         "color": LINE_COLORS[line["LineCode"]]
     }
 
-def clean_path(stop, coords):
-    lat, lon = coords.get(stop["StationCode"], (None, None))
-    return {
-        "seq_num": stop["SeqNum"],
-        "station_code": stop["StationCode"],
-        "station_name": stop["StationName"],
-        "lat": lat,
-        "lon": lon,
-    }
 
 # ENDPOINTS
 @app.get("/api/trains/{station}")
@@ -158,16 +164,7 @@ def get_lines():
 
 @app.get("/api/path/{line_code}")
 def get_path(line_code: str):
-    all_lines = _static_cache["lines"]
-    line = next(l for l in all_lines if l["code"] == line_code.upper())
-    coords = {s["code"]: (s["lat"], s["lon"]) for s in _static_cache["stations"]}
-    response = requests.get(
-        PATH_URL + "?FromStationCode=" + line["start_station"] + "&ToStationCode=" + line["end_station"],
-        headers={"api_key": os.environ["WMATA_API_KEY"]},
-        timeout=10,
-    )
-    response.raise_for_status()
-    return [clean_path(stop, coords) for stop in response.json()["Path"]]
+    return _static_cache["routes"].get(line_code.upper(), [])
 
 @app.get("/")
 def home():
