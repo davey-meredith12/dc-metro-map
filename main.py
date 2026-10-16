@@ -1,6 +1,8 @@
 import os
 import requests
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,7 +10,23 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 load_dotenv()
-app = FastAPI()
+
+_static_cache = {}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    headers = {"api_key": os.environ["WMATA_API_KEY"]}
+    stations_res = requests.get(STATIONS_URL, headers=headers, timeout=10)
+    stations_res.raise_for_status()
+    _static_cache["stations"] = [clean_station(s) for s in stations_res.json()["Stations"]]
+
+    lines_res = requests.get(LINES_URL, headers=headers, timeout=10)
+    lines_res.raise_for_status()
+    _static_cache["lines"] = [clean_line(l) for l in lines_res.json()["Lines"]]
+
+    yield
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # API URLS
@@ -99,22 +117,6 @@ def clean_path(stop, coords):
         "lon": lon,
     }
 
-_static_cache = {}
-
-def _fetch_stations():
-    if "stations" not in _static_cache:
-        response = requests.get(STATIONS_URL, headers={"api_key": os.environ["WMATA_API_KEY"]}, timeout=10)
-        response.raise_for_status()
-        _static_cache["stations"] = [clean_station(s) for s in response.json()["Stations"]]
-    return _static_cache["stations"]
-
-def _fetch_lines():
-    if "lines" not in _static_cache:
-        response = requests.get(LINES_URL, headers={"api_key": os.environ["WMATA_API_KEY"]}, timeout=10)
-        response.raise_for_status()
-        _static_cache["lines"] = [clean_line(l) for l in response.json()["Lines"]]
-    return _static_cache["lines"]
-
 # ENDPOINTS
 @app.get("/api/trains/{station}")
 def get_trains(station: str):
@@ -128,7 +130,7 @@ def get_trains(station: str):
 
 @app.get("/api/stations")
 def get_stations():
-    return _fetch_stations()
+    return _static_cache["stations"]
 
 @app.get("/api/incidents")
 def get_incidents():
@@ -152,13 +154,13 @@ def get_elevator_incidents(station: str):
 
 @app.get("/api/lines")
 def get_lines():
-    return _fetch_lines()
+    return _static_cache["lines"]
 
 @app.get("/api/path/{line_code}")
 def get_path(line_code: str):
-    all_lines = _fetch_lines()
+    all_lines = _static_cache["lines"]
     line = next(l for l in all_lines if l["code"] == line_code.upper())
-    coords = {s["code"]: (s["lat"], s["lon"]) for s in _fetch_stations()}
+    coords = {s["code"]: (s["lat"], s["lon"]) for s in _static_cache["stations"]}
     response = requests.get(
         PATH_URL + "?FromStationCode=" + line["start_station"] + "&ToStationCode=" + line["end_station"],
         headers={"api_key": os.environ["WMATA_API_KEY"]},
