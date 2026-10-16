@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 app = FastAPI()
 
-BASE_URL = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/"
+STATION_PREDICTION_URL = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/"
 
 def clean_minutes(raw):
     if raw == "ARR" or raw == "BRD":
@@ -33,7 +33,7 @@ def clean_train(train):
 @app.get("/api/trains/{station}")
 def get_trains(station: str):
     response = requests.get(
-        BASE_URL + station.upper(),
+        STATION_PREDICTION_URL + station.upper(),
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
