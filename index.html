@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Metro Arrivals</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1.5rem 1rem; }
+    main { max-width: 700px; margin: 0 auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid #ccc; }
+    th { background: #f2f2f2; }
+    .error { color: #b00020; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Next trains</h1>
+
+    <form id="station-form">
+      <label for="station">Station code</label>
+      <input id="station" value="A01" maxlength="3" size="4">
+      <button type="submit">Look up</button>
+    </form>
+
+    <p id="message" class="muted"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Destination</th>
+          <th>Station</th>
+          <th>Minutes</th>
+        </tr>
+      </thead>
+      <tbody id="train-rows"></tbody>
+    </table>
+  </main>
+
+  <script>
+    const form = document.getElementById("station-form");
+    const stationInput = document.getElementById("station");
+    const message = document.getElementById("message");
+    const tbody = document.getElementById("train-rows");
+
+    function addRow(train) {
+      const row = document.createElement("tr");
+
+      // minutes can be a number, 0 (arriving or boarding), or null (no estimate)
+      let minutesText;
+      if (train.minutes === null) {
+        minutesText = "—";
+      } else if (train.minutes === 0) {
+        minutesText = "Now";
+      } else {
+        minutesText = train.minutes;
+      }
+
+      for (const value of [train.line, train.destination, train.station, minutesText]) {
+        const cell = document.createElement("td");
+        cell.textContent = value;   // textContent keeps outside data from injecting markup
+        row.appendChild(cell);
+      }
+
+      tbody.appendChild(row);
+    }
+
+    async function loadTrains() {
+      const code = stationInput.value.trim();
+      message.className = "muted";
+      message.textContent = "Loading...";
+      tbody.replaceChildren();
+
+      try {
+        const response = await fetch("/api/trains/" + encodeURIComponent(code));
+        if (!response.ok) {
+          throw new Error("Server returned " + response.status);
+        }
+
+        const trains = await response.json();
+
+        if (trains.length === 0) {
+          message.textContent = "No predictions right now.";
+          return;
+        }
+
+        message.textContent = "";
+        for (const train of trains) {
+          addRow(train);
+        }
+      } catch (error) {
+        message.className = "error";
+        message.textContent = "Could not load trains: " + error.message;
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadTrains();
+    });
+
+    loadTrains();
+  </script>
+</body>
+</html>
