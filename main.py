@@ -6,11 +6,13 @@ import requests
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from dotenv import load_dotenv
 
 load_dotenv()
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 STATION_PREDICTION_URL = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/"
 STATIONS_URL = "https://api.wmata.com/Rail.svc/json/jStations"

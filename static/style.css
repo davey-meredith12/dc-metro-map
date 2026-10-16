@@ -1,0 +1,13 @@
+body { font-family: system-ui, sans-serif; margin: 0; padding: 1.5rem 1rem; }
+main { max-width: 700px; margin: 0 auto; }
+table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid #ccc; }
+th { background: #f2f2f2; }
+.error { color: #b00020; }
+.muted { color: #666; }
+.incidents { margin-top: 1.5rem; }
+.incidents h2 { font-size: 1rem; margin-bottom: 0.4rem; }
+.incident-item { padding: 0.4rem 0; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+.incident-item:last-child { border-bottom: none; }
+.incident-meta { color: #666; font-size: 0.8rem; margin-top: 0.1rem; }
+.none { color: #666; font-size: 0.9rem; font-style: italic; }
