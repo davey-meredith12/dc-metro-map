@@ -51,6 +51,7 @@ INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/Incidents"
 ELEVATOR_INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/ElevatorIncidents?StationCode="
 LINES_URL = "https://api.wmata.com/Rail.svc/json/jLines"
 STANDARD_ROUTES_URL = "https://api.wmata.com/TrainPositions/StandardRoutes?contentType=json"
+STATION_TO_STATION_URL = "https://api.wmata.com/Rail.svc/json/jStationToStation"
 
 LINE_COLORS = {
     "RD": "#E6194B",
@@ -165,6 +166,23 @@ def get_lines():
 @app.get("/api/path/{line_code}")
 def get_path(line_code: str):
     return _static_cache["routes"].get(line_code.upper(), [])
+
+@app.get("/api/trip/{from_code}/{to_code}")
+def get_trip(from_code: str, to_code: str):
+    response = requests.get(
+        STATION_TO_STATION_URL,
+        params={"FromStationCode": from_code.upper(), "ToStationCode": to_code.upper()},
+        headers={"api_key": os.environ["WMATA_API_KEY"]},
+        timeout=10,
+    )
+    response.raise_for_status()
+    info = response.json()["StationToStationInfos"][0]
+    return {
+        "rail_time": info["RailTime"],
+        "peak_fare": info["RailFare"]["PeakTime"],
+        "off_peak_fare": info["RailFare"]["OffPeakTime"],
+        "senior_fare": info["RailFare"]["SeniorDisabled"],
+    }
 
 @app.get("/")
 def home():
