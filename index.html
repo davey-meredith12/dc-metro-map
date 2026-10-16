@@ -19,9 +19,9 @@
     <h1>Next trains</h1>
 
     <form id="station-form">
-      <label for="station">Station code</label>
-      <input id="station" value="A01" maxlength="3" size="4">
-      <button type="submit">Look up</button>
+      <label for="station">Station</label>
+      <select id="station"><option value="">Loading…</option></select>
+      <button type="submit">Refresh</button>
     </form>
 
     <p id="message" class="muted"></p>
@@ -42,6 +42,29 @@
   <script>
     const form = document.getElementById("station-form");
     const stationInput = document.getElementById("station");
+
+    const LINE_ORDER = ["RD", "BL", "OR", "SV", "GR", "YL"];
+    const LINE_NAMES = { RD: "Red", BL: "Blue", OR: "Orange", SV: "Silver", GR: "Green", YL: "Yellow" };
+
+    async function loadStations() {
+      const response = await fetch("/api/stations");
+      const stations = await response.json();
+      stations.sort((a, b) => a.name.localeCompare(b.name));
+      stationInput.replaceChildren();
+      for (const lineCode of LINE_ORDER) {
+        const group = document.createElement("optgroup");
+        group.label = LINE_NAMES[lineCode] + " Line";
+        for (const s of stations) {
+          if (s.lines[0] !== lineCode) continue;
+          const opt = document.createElement("option");
+          opt.value = s.code;
+          opt.textContent = s.name;
+          if (s.code === "A01") opt.selected = true;
+          group.appendChild(opt);
+        }
+        if (group.children.length > 0) stationInput.appendChild(group);
+      }
+    }
     const message = document.getElementById("message");
     const tbody = document.getElementById("train-rows");
 
@@ -101,7 +124,12 @@
       loadTrains();
     });
 
-    loadTrains();
+    stationInput.addEventListener("change", () => loadTrains());
+
+    loadStations().then(() => {
+      loadTrains();
+      setInterval(loadTrains, 30000);
+    });
   </script>
 </body>
 </html>
