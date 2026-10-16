@@ -89,14 +89,31 @@ def clean_line(line):
         "color": LINE_COLORS[line["LineCode"]]
     }
 
-def clean_path(stop):
+def clean_path(stop, coords):
+    lat, lon = coords.get(stop["StationCode"], (None, None))
     return {
         "seq_num": stop["SeqNum"],
         "station_code": stop["StationCode"],
         "station_name": stop["StationName"],
-        "lat": stop["Lat"],
-        "lon": stop["Lon"],
+        "lat": lat,
+        "lon": lon,
     }
+
+_static_cache = {}
+
+def _fetch_stations():
+    if "stations" not in _static_cache:
+        response = requests.get(STATIONS_URL, headers={"api_key": os.environ["WMATA_API_KEY"]}, timeout=10)
+        response.raise_for_status()
+        _static_cache["stations"] = [clean_station(s) for s in response.json()["Stations"]]
+    return _static_cache["stations"]
+
+def _fetch_lines():
+    if "lines" not in _static_cache:
+        response = requests.get(LINES_URL, headers={"api_key": os.environ["WMATA_API_KEY"]}, timeout=10)
+        response.raise_for_status()
+        _static_cache["lines"] = [clean_line(l) for l in response.json()["Lines"]]
+    return _static_cache["lines"]
 
 # ENDPOINTS
 @app.get("/api/trains/{station}")
@@ -111,13 +128,7 @@ def get_trains(station: str):
 
 @app.get("/api/stations")
 def get_stations():
-    response = requests.get(
-        STATIONS_URL,
-        headers={"api_key": os.environ["WMATA_API_KEY"]},
-        timeout=10,
-    )
-    response.raise_for_status()
-    return [clean_station(station) for station in response.json()["Stations"]]
+    return _fetch_stations()
 
 @app.get("/api/incidents")
 def get_incidents():
@@ -141,25 +152,20 @@ def get_elevator_incidents(station: str):
 
 @app.get("/api/lines")
 def get_lines():
-    response = requests.get(
-        LINES_URL,
-        headers={"api_key": os.environ["WMATA_API_KEY"]},
-        timeout=10,
-    )
-    response.raise_for_status()
-    return [clean_line(line) for line in response.json()["Lines"]]
+    return _fetch_lines()
 
 @app.get("/api/path/{line_code}")
 def get_path(line_code: str):
-    all_lines = get_lines()
+    all_lines = _fetch_lines()
     line = next(l for l in all_lines if l["code"] == line_code.upper())
+    coords = {s["code"]: (s["lat"], s["lon"]) for s in _fetch_stations()}
     response = requests.get(
         PATH_URL + "?FromStationCode=" + line["start_station"] + "&ToStationCode=" + line["end_station"],
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
     response.raise_for_status()
-    return [clean_path(path) for path in response.json()["Path"]]
+    return [clean_path(stop, coords) for stop in response.json()["Path"]]
 
 @app.get("/")
 def home():

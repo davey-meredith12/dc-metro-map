@@ -8,6 +8,44 @@ const elevatorList = document.getElementById("elevator-list");
 const LINE_ORDER = ["RD", "BL", "OR", "SV", "GR", "YL"];
 const LINE_NAMES = { RD: "Red", BL: "Blue", OR: "Orange", SV: "Silver", GR: "Green", YL: "Yellow" };
 
+const map = L.map("map").setView([38.9, -77.03], 11);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}).addTo(map);
+
+async function loadMap() {
+  const [linesRes, stationsRes] = await Promise.all([
+    fetch("/api/lines"),
+    fetch("/api/stations"),
+  ]);
+  const lines = await linesRes.json();
+  const stations = await stationsRes.json();
+
+  for (const line of lines) {
+    const pathRes = await fetch("/api/path/" + line.code);
+    const path = await pathRes.json();
+    const coords = path.map(s => [s.lat, s.lon]);
+    L.polyline(coords, { color: line.color, weight: 4, opacity: 0.8 }).addTo(map);
+  }
+
+  for (const s of stations) {
+    L.circleMarker([s.lat, s.lon], {
+      radius: 5,
+      color: "#333",
+      fillColor: "#fff",
+      fillOpacity: 1,
+      weight: 2,
+    })
+      .addTo(map)
+      .bindTooltip(s.name)
+      .on("click", () => {
+        stationInput.value = s.code;
+        loadTrains();
+      });
+  }
+}
+
 let allStations = [];
 
 async function loadStations() {
@@ -126,6 +164,7 @@ form.addEventListener("submit", (event) => {
 
 stationInput.addEventListener("change", () => loadTrains());
 
+loadMap();
 loadStations().then(() => {
   loadTrains();
   setInterval(loadTrains, 30000);
