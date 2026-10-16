@@ -43,6 +43,18 @@
       <h2>Elevator &amp; escalator outages</h2>
       <div id="elevator-list"><span class="none">No outages.</span></div>
     </div>
+
+    <section class="trip-planner">
+      <h2>Trip planner</h2>
+      <form id="trip-form">
+        <label for="trip-from">From</label>
+        <select id="trip-from"><option value="">Loading…</option></select>
+        <label for="trip-to">To</label>
+        <select id="trip-to"><option value="">Loading…</option></select>
+        <button type="submit">Get fare &amp; time</button>
+      </form>
+      <div id="trip-result"></div>
+    </section>
   </main>
 
   <script src="/static/app.js"></script>

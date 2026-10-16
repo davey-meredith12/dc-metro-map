@@ -4,6 +4,10 @@ const message = document.getElementById("message");
 const tbody = document.getElementById("train-rows");
 const incidentList = document.getElementById("incident-list");
 const elevatorList = document.getElementById("elevator-list");
+const tripForm = document.getElementById("trip-form");
+const tripFrom = document.getElementById("trip-from");
+const tripTo = document.getElementById("trip-to");
+const tripResult = document.getElementById("trip-result");
 
 const LINE_ORDER = ["RD", "BL", "OR", "SV", "GR", "YL"];
 const LINE_NAMES = { RD: "Red", BL: "Blue", OR: "Orange", SV: "Silver", GR: "Green", YL: "Yellow" };
@@ -164,8 +168,55 @@ form.addEventListener("submit", (event) => {
 
 stationInput.addEventListener("change", () => loadTrains());
 
+function buildTripDropdowns() {
+  const sorted = [...allStations].sort((a, b) => a.name.localeCompare(b.name));
+  for (const select of [tripFrom, tripTo]) {
+    select.replaceChildren();
+    for (const lineCode of LINE_ORDER) {
+      const group = document.createElement("optgroup");
+      group.label = LINE_NAMES[lineCode] + " Line";
+      for (const s of sorted) {
+        if (s.lines[0] !== lineCode) continue;
+        const opt = document.createElement("option");
+        opt.value = s.code;
+        opt.textContent = s.name;
+        group.appendChild(opt);
+      }
+      if (group.children.length > 0) select.appendChild(group);
+    }
+  }
+  tripTo.value = "B35";
+}
+
+async function loadTrip() {
+  const from = tripFrom.value;
+  const to = tripTo.value;
+  if (!from || !to || from === to) return;
+  tripResult.innerHTML = '<span class="muted">Loading…</span>';
+  try {
+    const response = await fetch(`/api/trip/${encodeURIComponent(from)}/${encodeURIComponent(to)}`);
+    if (!response.ok) throw new Error("Server returned " + response.status);
+    const trip = await response.json();
+    tripResult.innerHTML = `
+      <div class="trip-result">
+        <div class="trip-stat"><div class="label">Travel time</div><div class="value">${trip.rail_time} min</div></div>
+        <div class="trip-stat"><div class="label">Peak fare</div><div class="value">$${trip.peak_fare.toFixed(2)}</div></div>
+        <div class="trip-stat"><div class="label">Off-peak fare</div><div class="value">$${trip.off_peak_fare.toFixed(2)}</div></div>
+        <div class="trip-stat"><div class="label">Senior fare</div><div class="value">$${trip.senior_fare.toFixed(2)}</div></div>
+      </div>`;
+  } catch (error) {
+    tripResult.innerHTML = `<span class="error">Could not load trip: ${error.message}</span>`;
+  }
+}
+
+tripForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadTrip();
+});
+
 loadMap();
 loadStations().then(() => {
+  buildTripDropdowns();
   loadTrains();
   setInterval(loadTrains, 30000);
 });

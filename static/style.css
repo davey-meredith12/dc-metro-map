@@ -12,3 +12,10 @@ th { background: #f2f2f2; }
 .incident-item:last-child { border-bottom: none; }
 .incident-meta { color: #666; font-size: 0.8rem; margin-top: 0.1rem; }
 .none { color: #666; font-size: 0.9rem; font-style: italic; }
+.trip-planner { margin-top: 2rem; }
+.trip-planner h2 { font-size: 1rem; margin-bottom: 0.5rem; }
+.trip-planner form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.trip-result { margin-top: 1rem; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.trip-stat { background: #f2f2f2; border-radius: 6px; padding: 0.6rem 1rem; }
+.trip-stat .label { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+.trip-stat .value { font-size: 1.2rem; font-weight: 600; margin-top: 0.1rem; }

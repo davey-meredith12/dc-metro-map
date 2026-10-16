@@ -51,7 +51,7 @@ INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/Incidents"
 ELEVATOR_INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/ElevatorIncidents?StationCode="
 LINES_URL = "https://api.wmata.com/Rail.svc/json/jLines"
 STANDARD_ROUTES_URL = "https://api.wmata.com/TrainPositions/StandardRoutes?contentType=json"
-STATION_TO_STATION_URL = "https://api.wmata.com/Rail.svc/json/jStationToStation"
+STATION_TO_STATION_URL = "https://api.wmata.com/Rail.svc/json/jSrcStationToDstStationInfo"
 
 LINE_COLORS = {
     "RD": "#E6194B",
