@@ -2,7 +2,9 @@
 
 An interactive DC rail dashboard built with FastAPI and vanilla JS, using data from the [WMATA API](https://developer.wmata.com).
 
-![DC Commute showing the full-screen map and station panel](/screenshots/Example_Screenshot.png)
+![DC Commute showing the full-screen map and station panel in light mode](/screenshots/light.png)
+
+![DC Commute showing the full-screen map and station panel in dark mode](/screenshots/dark.png)
 
 ## Features
 
