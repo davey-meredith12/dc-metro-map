@@ -43,3 +43,10 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 - **Backend:** FastAPI (Python) — proxies and cleans WMATA API responses
 - **Frontend:** Vanilla JS, Leaflet for the map
 - **Data:** [WMATA API](https://developer.wmata.com) — real-time train predictions, station data, incidents
+
+> **Note:** This is a personal learning project and is not affiliated with or endorsed by
+> the Washington Metropolitan Area Transit Authority (WMATA). It uses data from the
+> [WMATA API](https://developer.wmata.com) under WMATA's
+> [Transit Data Terms of Use](https://developer.wmata.com/license). It is intended to be run
+> locally; it is not deployed publicly and does not redistribute WMATA transit data.
+> To run it, obtain your own free API key at developer.wmata.com.
