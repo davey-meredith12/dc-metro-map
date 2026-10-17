@@ -9,6 +9,8 @@ An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by 
 - **Station selector** — Dropdown grouped by line, populated dynamically from the API
 - **Rail alerts** — Active service disruptions filtered to the lines serving the selected station
 - **Elevator & escalator outages** — Current outages at the selected station
+- **Trip planner** — Select a start and end station to get travel time and peak, off-peak, and senior fares
+- **Station entrances** — Physical entrance locations shown on the map when a station is selected
 
 ## API Endpoints
 
@@ -20,6 +22,8 @@ An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by 
 | `GET` | `/api/trains/{station}` | Live next-train predictions for a station |
 | `GET` | `/api/incidents` | Active rail service disruptions system-wide |
 | `GET` | `/api/elevators/{station}` | Elevator and escalator outages at a station |
+| `GET` | `/api/trip/{from_code}/{to_code}` | Travel time and fares between two stations |
+| `GET` | `/api/entrances/{station}` | Physical entrance locations for a station |
 
 ## Running locally
 
