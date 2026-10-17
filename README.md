@@ -4,24 +4,26 @@ An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by 
 
 ## Features
 
-- **Live map** — Metro lines rendered as colored polylines on a Leaflet map, with a clickable marker for every station
-- **Real-time arrivals** — Next train predictions for any station, auto-refreshed every 30 seconds
-- **Station selector** — Dropdown grouped by line, populated dynamically from the API
+- **Full-screen live map** — Metro lines drawn side by side where they share track, with a clickable marker for every station and the selected station highlighted
+- **Real-time arrivals** — Next trains split by direction, with car count and arriving/boarding status; refreshes every 30 seconds in place and pauses while the tab is hidden
+- **Station search** — Type-ahead search with keyboard support; transfer stations (Metro Center, Gallery Place, L'Enfant Plaza, Fort Totten) are merged into one station covering all their lines
 - **Rail alerts** — Active service disruptions filtered to the lines serving the selected station
 - **Elevator & escalator outages** — Current outages at the selected station
-- **Trip planner** — Select a start and end station to get travel time and peak, off-peak, and senior fares
+- **Trip planner** — Travel time and peak, off-peak, and senior fares, starting from the selected station
 - **Station entrances** — Physical entrance locations shown on the map when a station is selected
+- **Shareable links** — The selected station is kept in the URL (e.g. `/#A01`) and remembered between visits
+- **Responsive with dark mode** — Side panel on desktop, bottom panel on phones; follows the system light/dark setting
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/stations` | All stations with name, code, coordinates, and lines served |
+| `GET` | `/api/stations` | All stations with name, code, coordinates, lines served, and transfer partner code |
 | `GET` | `/api/lines` | All lines with display name, color, and terminal stations |
 | `GET` | `/api/path/{line_code}` | Ordered station sequence for a line (used to draw map polylines) |
-| `GET` | `/api/trains/{station}` | Live next-train predictions for a station |
+| `GET` | `/api/trains/{station}` | Live next-train predictions for a station (both levels at transfer stations), with direction group and car count |
 | `GET` | `/api/incidents` | Active rail service disruptions system-wide |
-| `GET` | `/api/elevators/{station}` | Elevator and escalator outages at a station |
+| `GET` | `/api/elevators/{station}` | Elevator and escalator outages at a station (both levels at transfer stations) |
 | `GET` | `/api/trip/{from_code}/{to_code}` | Travel time and fares between two stations |
 | `GET` | `/api/entrances/{station}` | Physical entrance locations for a station |
 
@@ -45,7 +47,7 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 ## Stack
 
 - **Backend:** FastAPI (Python) — proxies and cleans WMATA API responses
-- **Frontend:** Vanilla JS, Leaflet for the map
+- **Frontend:** Vanilla JS and CSS, no build step; Leaflet for the map, with leaflet-polylineoffset to draw shared track side by side
 - **Data:** [WMATA API](https://developer.wmata.com) — real-time train predictions, station data, incidents
 
 > **Note:** This is a personal learning project and is not affiliated with or endorsed by
