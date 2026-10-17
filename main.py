@@ -89,7 +89,7 @@ async def guard_api(request: Request, call_next):
 STATION_PREDICTION_URL = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/"
 STATIONS_URL = "https://api.wmata.com/Rail.svc/json/jStations"
 INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/Incidents"
-ELEVATOR_INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/ElevatorIncidents?StationCode="
+ELEVATOR_INCIDENTS_URL = "https://api.wmata.com/Incidents.svc/json/ElevatorIncidents"
 LINES_URL = "https://api.wmata.com/Rail.svc/json/jLines"
 STANDARD_ROUTES_URL = "https://api.wmata.com/TrainPositions/StandardRoutes?contentType=json"
 STATION_TO_STATION_URL = "https://api.wmata.com/Rail.svc/json/jSrcStationToDstStationInfo"
@@ -200,25 +200,26 @@ def station_codes(station):
     return [code, partner] if partner else [code]
 
 # ENDPOINTS
-_trains_cache = {}
+_trains_cache = {"data": {}, "expires": 0}
 
 @app.get("/api/trains/{station}")
 def get_trains(station: str):
-    """Next-train predictions for a station, covering both levels at transfer stations, cached
-    for 15 seconds so many viewers of one station share a single WMATA request."""
+    """Next-train predictions for a station, covering both levels at transfer stations. Predictions for
+    every station come from one WMATA call cached for 15 seconds, so load on WMATA doesn't grow with users."""
     code = valid_code(station)
-    entry = _trains_cache.get(code)
-    if entry and time.time() < entry["expires"]:
-        return entry["data"]
-    response = requests.get(
-        STATION_PREDICTION_URL + ",".join(station_codes(code)),
-        headers={"api_key": os.environ["WMATA_API_KEY"]},
-        timeout=10,
-    )
-    response.raise_for_status()
-    data = [clean_train(train) for train in response.json()["Trains"]]
-    _trains_cache[code] = {"data": data, "expires": time.time() + 15}
-    return data
+    if time.time() >= _trains_cache["expires"]:
+        response = requests.get(
+            STATION_PREDICTION_URL + "All",
+            headers={"api_key": os.environ["WMATA_API_KEY"]},
+            timeout=10,
+        )
+        response.raise_for_status()
+        by_station = {}
+        for train in response.json()["Trains"]:
+            by_station.setdefault(train["LocationCode"], []).append(clean_train(train))
+        _trains_cache["data"] = by_station
+        _trains_cache["expires"] = time.time() + 15
+    return [train for c in station_codes(code) for train in _trains_cache["data"].get(c, [])]
 
 @app.get("/api/stations")
 def get_stations():
@@ -242,26 +243,26 @@ def get_incidents():
     _incidents_cache["expires"] = time.time() + 120
     return _incidents_cache["data"]
 
-_elevator_cache = {}
+_elevator_cache = {"data": {}, "expires": 0}
 
 @app.get("/api/elevators/{station}")
 def get_elevator_incidents(station: str):
-    """Elevator and escalator outages at a station (both levels at transfer stations), cached for 2 minutes."""
+    """Elevator and escalator outages at a station (both levels at transfer stations). Outages for every
+    station come from one WMATA call cached for 2 minutes."""
     code = valid_code(station)
-    entry = _elevator_cache.get(code)
-    if entry and time.time() < entry["expires"]:
-        return entry["data"]
-    data = []
-    for c in station_codes(code):
+    if time.time() >= _elevator_cache["expires"]:
         response = requests.get(
-            ELEVATOR_INCIDENTS_URL + c,
+            ELEVATOR_INCIDENTS_URL,
             headers={"api_key": os.environ["WMATA_API_KEY"]},
             timeout=10,
         )
         response.raise_for_status()
-        data += [clean_elevator_incident(elevator_incident) for elevator_incident in response.json()["ElevatorIncidents"]]
-    _elevator_cache[code] = {"data": data, "expires": time.time() + 120}
-    return data
+        by_station = {}
+        for elevator_incident in response.json()["ElevatorIncidents"]:
+            by_station.setdefault(elevator_incident["StationCode"], []).append(clean_elevator_incident(elevator_incident))
+        _elevator_cache["data"] = by_station
+        _elevator_cache["expires"] = time.time() + 120
+    return [i for c in station_codes(code) for i in _elevator_cache["data"].get(c, [])]
 
 @app.get("/api/lines")
 def get_lines():

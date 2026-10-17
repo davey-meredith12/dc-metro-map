@@ -43,7 +43,9 @@ public API:
   and are rate-limited per IP; no OpenAPI docs or schema are published.
 - Station codes are checked against the station list before anything is sent to WMATA.
 - Responses are cached to keep load on WMATA low: stations, lines, routes and entrances are loaded once
-  at startup, train predictions for 15 seconds, alerts and outages for 2 minutes, and trip fares for 6 hours.
+  at startup, and trip fares are cached for 6 hours. Train predictions (15 seconds), rail alerts and
+  elevator/escalator outages (2 minutes) are each fetched for all stations in a single call, so WMATA
+  load stays the same however many people are using the app.
 
 ## Running locally
 
