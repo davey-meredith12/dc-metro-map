@@ -4,8 +4,8 @@ import requests
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from dotenv import load_dotenv
@@ -24,6 +24,7 @@ async def lifespan(app: FastAPI):
     _static_cache["together"] = {
         s["code"]: s["together"] for s in _static_cache["stations"] if s["together"]
     }
+    _static_cache["codes"] = {s["code"] for s in _static_cache["stations"]}
 
     lines_res = requests.get(LINES_URL, headers=headers, timeout=10)
     lines_res.raise_for_status()
@@ -56,8 +57,33 @@ async def lifespan(app: FastAPI):
 
     yield
 
-app = FastAPI(lifespan=lifespan)
+# The /api routes only exist to feed this app's own page, so don't publish docs or a schema for them
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+RATE_LIMIT_PER_MINUTE = 120
+_rate_window = {"start": 0, "counts": {}}
+
+def over_rate_limit(ip):
+    """Count a request from this IP in the current one-minute window and report whether it is over the limit."""
+    now = time.time()
+    if now - _rate_window["start"] >= 60:
+        _rate_window["start"] = now
+        _rate_window["counts"] = {}
+    counts = _rate_window["counts"]
+    counts[ip] = counts.get(ip, 0) + 1
+    return counts[ip] > RATE_LIMIT_PER_MINUTE
+
+@app.middleware("http")
+async def guard_api(request: Request, call_next):
+    """Only serve /api requests made by this app's own page, and rate-limit them per IP so
+    the app can't be used as a general WMATA data API or flood WMATA with requests."""
+    if request.url.path.startswith("/api/"):
+        if request.headers.get("sec-fetch-site") != "same-origin":
+            return JSONResponse({"detail": "Forbidden"}, status_code=403)
+        if over_rate_limit(request.client.host if request.client else "unknown"):
+            return JSONResponse({"detail": "Too many requests"}, status_code=429)
+    return await call_next(request)
 
 # API URLS
 STATION_PREDICTION_URL = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/"
@@ -158,6 +184,14 @@ def clean_entrance(entrance):
         "description": entrance["Description"],
     }
 
+def valid_code(station):
+    """Return the upper-cased station code, or raise a 404 if it isn't a known station,
+    so unknown codes are never forwarded to WMATA."""
+    code = station.upper()
+    if code not in _static_cache["codes"]:
+        raise HTTPException(status_code=404, detail="Unknown station")
+    return code
+
 def station_codes(station):
     """Return a station code plus its transfer partner, if any. Transfer stations
     have one code per set of platforms (e.g. Metro Center is A01 and C01)."""
@@ -166,16 +200,25 @@ def station_codes(station):
     return [code, partner] if partner else [code]
 
 # ENDPOINTS
+_trains_cache = {}
+
 @app.get("/api/trains/{station}")
 def get_trains(station: str):
-    """Live next-train predictions for a station, covering both levels at transfer stations."""
+    """Next-train predictions for a station, covering both levels at transfer stations, cached
+    for 15 seconds so many viewers of one station share a single WMATA request."""
+    code = valid_code(station)
+    entry = _trains_cache.get(code)
+    if entry and time.time() < entry["expires"]:
+        return entry["data"]
     response = requests.get(
-        STATION_PREDICTION_URL + ",".join(station_codes(station)),
+        STATION_PREDICTION_URL + ",".join(station_codes(code)),
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
     response.raise_for_status()
-    return [clean_train(train) for train in response.json()["Trains"]]
+    data = [clean_train(train) for train in response.json()["Trains"]]
+    _trains_cache[code] = {"data": data, "expires": time.time() + 15}
+    return data
 
 @app.get("/api/stations")
 def get_stations():
@@ -204,7 +247,7 @@ _elevator_cache = {}
 @app.get("/api/elevators/{station}")
 def get_elevator_incidents(station: str):
     """Elevator and escalator outages at a station (both levels at transfer stations), cached for 2 minutes."""
-    code = station.upper()
+    code = valid_code(station)
     entry = _elevator_cache.get(code)
     if entry and time.time() < entry["expires"]:
         return entry["data"]
@@ -230,23 +273,35 @@ def get_path(line_code: str):
     """Ordered stations along a line, used to draw it on the map."""
     return _static_cache["routes"].get(line_code.upper(), [])
 
+_trip_cache = {}
+
 @app.get("/api/trip/{from_code}/{to_code}")
 def get_trip(from_code: str, to_code: str):
-    """Travel time and peak, off-peak, and senior fares between two stations."""
+    """Travel time and peak, off-peak, and senior fares between two stations, cached for 6 hours
+    since they rarely change."""
+    key = (valid_code(from_code), valid_code(to_code))
+    entry = _trip_cache.get(key)
+    if entry and time.time() < entry["expires"]:
+        return entry["data"]
     response = requests.get(
         STATION_TO_STATION_URL,
-        params={"FromStationCode": from_code.upper(), "ToStationCode": to_code.upper()},
+        params={"FromStationCode": key[0], "ToStationCode": key[1]},
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
     response.raise_for_status()
-    info = response.json()["StationToStationInfos"][0]
-    return {
+    infos = response.json()["StationToStationInfos"]
+    if not infos:
+        raise HTTPException(status_code=404, detail="No trip found")
+    info = infos[0]
+    data = {
         "rail_time": info["RailTime"],
         "peak_fare": info["RailFare"]["PeakTime"],
         "off_peak_fare": info["RailFare"]["OffPeakTime"],
         "senior_fare": info["RailFare"]["SeniorDisabled"],
     }
+    _trip_cache[key] = {"data": data, "expires": time.time() + 6 * 3600}
+    return data
 
 @app.get("/api/entrances/{station}")
 def get_entrances(station: str):

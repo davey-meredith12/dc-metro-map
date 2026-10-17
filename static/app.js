@@ -348,7 +348,7 @@ function selectStation(code, { pushHistory = true, animate = true } = {}) {
   stationCombo.set(null);
   els.stationName.textContent = station.name;
   els.stationLines.replaceChildren(...station.lines.map(lineBadge));
-  document.title = station.name + " · Metro Arrivals";
+  document.title = station.name + " · DC Commute";
 
   if (!state.tripFromTouched) {
     state.tripFrom = station;

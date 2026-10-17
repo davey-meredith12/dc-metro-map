@@ -1,13 +1,13 @@
-# DC Metro Dashboard
+# DC Commute
 
-An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by the [WMATA API](https://developer.wmata.com).
+An interactive DC rail dashboard built with FastAPI and vanilla JS, using data from the [WMATA API](https://developer.wmata.com).
 
 ![DC Metro Dashboard showing the full-screen map and station panel](/screenshots/Example_Screenshot.png)
 
 ## Features
 
-- **Full-screen live map** — Metro lines drawn side by side where they share track, with a clickable marker for every station and the selected station highlighted
-- **Real-time arrivals** — Next trains split by direction, with car count and arriving/boarding status; refreshes every 30 seconds in place and pauses while the tab is hidden
+- **Full-screen map** — Rail lines drawn side by side where they share track, with a clickable marker for every station and the selected station highlighted
+- **Next-train predictions** — WMATA's arrival predictions split by direction, with car count and arriving/boarding status; refreshes every 30 seconds in place and pauses while the tab is hidden
 - **Station search** — Type-ahead search with keyboard support; transfer stations (Metro Center, Gallery Place, L'Enfant Plaza, Fort Totten) are merged into one station covering all their lines
 - **Rail alerts** — Active service disruptions filtered to the lines serving the selected station
 - **Elevator & escalator outages** — Current outages at the selected station
@@ -33,18 +33,17 @@ An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by 
   </tr>
 </table>
 
-## API Endpoints
+## How it works
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/stations` | All stations with name, code, coordinates, lines served, and transfer partner code |
-| `GET` | `/api/lines` | All lines with display name, color, and terminal stations |
-| `GET` | `/api/path/{line_code}` | Ordered station sequence for a line (used to draw map polylines) |
-| `GET` | `/api/trains/{station}` | Live next-train predictions for a station (both levels at transfer stations), with direction group and car count |
-| `GET` | `/api/incidents` | Active rail service disruptions system-wide |
-| `GET` | `/api/elevators/{station}` | Elevator and escalator outages at a station (both levels at transfer stations) |
-| `GET` | `/api/trip/{from_code}/{to_code}` | Travel time and fares between two stations |
-| `GET` | `/api/entrances/{station}` | Physical entrance locations for a station |
+The FastAPI backend calls WMATA server-side, so the API key never reaches the browser, and reshapes
+the responses into just what the page needs. Its `/api` routes are internal to this app, not a
+public API:
+
+- They only answer requests from the app's own page (checked with the browser's `Sec-Fetch-Site` header)
+  and are rate-limited per IP; no OpenAPI docs or schema are published.
+- Station codes are checked against the station list before anything is sent to WMATA.
+- Responses are cached to keep load on WMATA low: stations, lines, routes and entrances are loaded once
+  at startup, train predictions for 15 seconds, alerts and outages for 2 minutes, and trip fares for 6 hours.
 
 ## Running locally
 
@@ -63,6 +62,12 @@ python3 -m uvicorn main:app --reload
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
+## Deploying
+
+Set `WMATA_API_KEY` as a secret environment variable on the host rather than uploading a `.env` file.
+Most hosts run the app behind a proxy, so start uvicorn with `--proxy-headers --forwarded-allow-ips='*'`
+so the rate limit sees each visitor's IP instead of the proxy's.
+
 ## Stack
 
 - **Backend:** FastAPI (Python) — proxies and cleans WMATA API responses
@@ -72,9 +77,7 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 > **Note:** This is a personal learning project and is not affiliated with or endorsed by
 > the Washington Metropolitan Area Transit Authority (WMATA). It uses data from the
 > [WMATA API](https://developer.wmata.com) under WMATA's
-> [Transit Data Terms of Use](https://developer.wmata.com/license). It is intended to be run
-> locally; it is not deployed publicly and does not redistribute WMATA transit data.
-> It is not deployed because its `/api` endpoints pass WMATA Transit Data through largely
-> unchanged, and WMATA's terms (§§ 6 and 8) prohibit exposing Transit Data through your own
-> API without WMATA's prior written authorization.
-> To run it, obtain your own free API key at developer.wmata.com.
+> [Transit Data Terms of Use](https://developer.wmata.com/license); WMATA owns that data.
+> Train predictions, alerts, outages and fares are shown as WMATA provides them and may be
+> delayed, incomplete or inaccurate. Check [wmata.com](https://www.wmata.com) for official information.
+> To run it yourself, get your own free API key at developer.wmata.com.

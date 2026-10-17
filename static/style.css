@@ -119,11 +119,9 @@ button, input { font: inherit; color: inherit; }
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 7px;
-  background: var(--text);
-  color: var(--surface);
-  font-weight: 800;
-  font-size: 0.85rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
 }
 
 .combo { position: relative; }
@@ -249,6 +247,8 @@ button, input { font: inherit; color: inherit; }
 .section { padding: 12px 16px 0; }
 
 .panel-footer { margin-top: auto; padding: 24px 16px 16px; font-size: 0.75rem; }
+.panel-footer p { margin: 0 0 6px; }
+.panel-footer a { color: inherit; }
 
 /* ---------- Arrivals ---------- */
 
