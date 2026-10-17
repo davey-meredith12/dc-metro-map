@@ -2,6 +2,8 @@
 
 An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by the [WMATA API](https://developer.wmata.com).
 
+![DC Metro Dashboard showing the full-screen map and station panel](Example_Screenshot.png)
+
 ## Features
 
 - **Full-screen live map** — Metro lines drawn side by side where they share track, with a clickable marker for every station and the selected station highlighted
