@@ -2,7 +2,7 @@
 
 An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by the [WMATA API](https://developer.wmata.com).
 
-![DC Metro Dashboard showing the full-screen map and station panel](Example_Screenshot.png)
+![DC Metro Dashboard showing the full-screen map and station panel](/screenshots/Example_Screenshot.png)
 
 ## Features
 
@@ -15,6 +15,23 @@ An interactive DC Metro dashboard built with FastAPI and vanilla JS, powered by 
 - **Station entrances** — Physical entrance locations shown on the map when a station is selected
 - **Shareable links** — The selected station is kept in the URL (e.g. `/#A01`) and remembered between visits
 - **Responsive with dark mode** — Side panel on desktop, bottom panel on phones; follows the system light/dark setting
+
+## Screenshots
+
+**Station entrances** — Entrances for the selected station appear as amber dots; click one for its details.
+
+<img src="screenshots/Entrance_Screenshot.png" alt="Map zoomed in on Metro Center with entrance markers and an elevator entrance popup" width="600">
+
+<table>
+  <tr>
+    <th>Alerts &amp; outages</th>
+    <th>Trip planner</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="screenshots/Alerts_Screenshot.png" alt="L'Enfant Plaza station card with no rail alerts and six elevator/escalator outages expanded" width="320"></td>
+    <td valign="top"><img src="screenshots/TripPlanner_Screenshot.png" alt="Trip planner from New Carrollton to Union Station showing travel time and fares" width="380"></td>
+  </tr>
+</table>
 
 ## API Endpoints
 
