@@ -21,12 +21,8 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 const entranceLayer = L.layerGroup().addTo(map);
 
 async function loadMap() {
-  const [linesRes, stationsRes] = await Promise.all([
-    fetch("/api/lines"),
-    fetch("/api/stations"),
-  ]);
+  const linesRes = await fetch("/api/lines");
   const lines = await linesRes.json();
-  const stations = await stationsRes.json();
 
   for (const line of lines) {
     const pathRes = await fetch("/api/path/" + line.code);
@@ -35,7 +31,7 @@ async function loadMap() {
     L.polyline(coords, { color: line.color, weight: 4, opacity: 0.8 }).addTo(map);
   }
 
-  for (const s of stations) {
+  for (const s of allStations) {
     L.circleMarker([s.lat, s.lon], {
       radius: 5,
       color: "#333",
@@ -56,7 +52,16 @@ let allStations = [];
 
 async function loadStations() {
   const response = await fetch("/api/stations");
-  allStations = await response.json();
+  const raw = await response.json();
+  const byCode = Object.fromEntries(raw.map(s => [s.code, s]));
+
+  // Keep one entry per physical station, with lines from both codes
+  allStations = raw
+    .filter(s => !s.together || s.code < s.together)
+    .map(s => s.together
+      ? { ...s, lines: [...s.lines, ...byCode[s.together].lines] }
+      : s);
+
   allStations.sort((a, b) => a.name.localeCompare(b.name));
   stationInput.replaceChildren();
   for (const lineCode of LINE_ORDER) {
@@ -239,8 +244,8 @@ tripForm.addEventListener("submit", (event) => {
   loadTrip();
 });
 
-loadMap();
 loadStations().then(() => {
+  loadMap();
   buildTripDropdowns();
   loadTrains();
   setInterval(loadTrains, 30000);

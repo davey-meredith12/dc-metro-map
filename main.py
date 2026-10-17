@@ -20,6 +20,9 @@ async def lifespan(app: FastAPI):
     stations_res = requests.get(STATIONS_URL, headers=headers, timeout=10)
     stations_res.raise_for_status()
     _static_cache["stations"] = [clean_station(s) for s in stations_res.json()["Stations"]]
+    _static_cache["together"] = {
+        s["code"]: s["together"] for s in _static_cache["stations"] if s["together"]
+    }
 
     lines_res = requests.get(LINES_URL, headers=headers, timeout=10)
     lines_res.raise_for_status()
@@ -107,7 +110,8 @@ def clean_station(station):
         "name": station["Name"],
         "lat": station["Lat"],
         "lon": station["Lon"],
-        "lines": lines
+        "lines": lines,
+        "together": station["StationTogether1"] or None
     }
 
 def clean_incident(incident):
@@ -143,11 +147,17 @@ def clean_entrance(entrance):
         "description": entrance["Description"],
     }
 
+def station_codes(station):
+    # Transfer stations have one code per set of platforms; include the partner
+    code = station.upper()
+    partner = _static_cache["together"].get(code)
+    return [code, partner] if partner else [code]
+
 # ENDPOINTS
 @app.get("/api/trains/{station}")
 def get_trains(station: str):
     response = requests.get(
-        STATION_PREDICTION_URL + station.upper(),
+        STATION_PREDICTION_URL + ",".join(station_codes(station)),
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
@@ -182,13 +192,15 @@ def get_elevator_incidents(station: str):
     entry = _elevator_cache.get(code)
     if entry and time.time() < entry["expires"]:
         return entry["data"]
-    response = requests.get(
-        ELEVATOR_INCIDENTS_URL + code,
-        headers={"api_key": os.environ["WMATA_API_KEY"]},
-        timeout=10,
-    )
-    response.raise_for_status()
-    data = [clean_elevator_incident(elevator_incident) for elevator_incident in response.json()["ElevatorIncidents"]]
+    data = []
+    for c in station_codes(code):
+        response = requests.get(
+            ELEVATOR_INCIDENTS_URL + c,
+            headers={"api_key": os.environ["WMATA_API_KEY"]},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data += [clean_elevator_incident(elevator_incident) for elevator_incident in response.json()["ElevatorIncidents"]]
     _elevator_cache[code] = {"data": data, "expires": time.time() + 120}
     return data
 
