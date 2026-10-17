@@ -91,7 +91,10 @@ def clean_train(train):
         "line": train["Line"],
         "destination": train["DestinationName"],
         "station": train["LocationName"],
-        "minutes": clean_minutes(train["Min"])
+        "minutes": clean_minutes(train["Min"]),
+        "boarding": train["Min"] == "BRD",
+        "group": train["LocationCode"] + "-" + train["Group"],
+        "cars": int(train["Car"]) if train["Car"] and train["Car"].isdigit() else None
     }
 
 def clean_station(station):
