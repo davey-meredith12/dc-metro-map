@@ -61,30 +61,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-RATE_LIMIT_PER_MINUTE = 120
-_rate_window = {"start": 0, "counts": {}}
-
-def over_rate_limit(ip):
-    """Count a request from this IP in the current one-minute window and report whether it is over the limit."""
-    now = time.time()
-    if now - _rate_window["start"] >= 60:
-        _rate_window["start"] = now
-        _rate_window["counts"] = {}
-    counts = _rate_window["counts"]
-    counts[ip] = counts.get(ip, 0) + 1
-    return counts[ip] > RATE_LIMIT_PER_MINUTE
-
-@app.middleware("http")
-async def guard_api(request: Request, call_next):
-    """Only serve /api requests made by this app's own page, and rate-limit them per IP so
-    the app can't be used as a general WMATA data API or flood WMATA with requests."""
-    if request.url.path.startswith("/api/"):
-        if request.headers.get("sec-fetch-site") != "same-origin":
-            return JSONResponse({"detail": "Forbidden"}, status_code=403)
-        if over_rate_limit(request.client.host if request.client else "unknown"):
-            return JSONResponse({"detail": "Too many requests"}, status_code=429)
-    return await call_next(request)
-
 # API URLS
 STATION_PREDICTION_URL = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/"
 STATIONS_URL = "https://api.wmata.com/Rail.svc/json/jStations"
@@ -103,6 +79,8 @@ LINE_COLORS = {
     "GR": "#3CB44B",
     "YL": "#FFE119",
 }
+
+RATE_LIMIT_PER_MINUTE = 120
 
 # HELPERS
 def clean_minutes(raw):
@@ -198,6 +176,30 @@ def station_codes(station):
     code = station.upper()
     partner = _static_cache["together"].get(code)
     return [code, partner] if partner else [code]
+
+_rate_window = {"start": 0, "counts": {}}
+
+def over_rate_limit(ip):
+    """Count a request from this IP in the current one-minute window and report whether it is over the limit."""
+    now = time.time()
+    if now - _rate_window["start"] >= 60:
+        _rate_window["start"] = now
+        _rate_window["counts"] = {}
+    counts = _rate_window["counts"]
+    counts[ip] = counts.get(ip, 0) + 1
+    return counts[ip] > RATE_LIMIT_PER_MINUTE
+
+# MIDDLEWARE
+@app.middleware("http")
+async def guard_api(request: Request, call_next):
+    """Only serve /api requests made by this app's own page, and rate-limit them per IP so
+    the app can't be used as a general WMATA data API or flood WMATA with requests."""
+    if request.url.path.startswith("/api/"):
+        if request.headers.get("sec-fetch-site") != "same-origin":
+            return JSONResponse({"detail": "Forbidden"}, status_code=403)
+        if over_rate_limit(request.client.host if request.client else "unknown"):
+            return JSONResponse({"detail": "Too many requests"}, status_code=429)
+    return await call_next(request)
 
 # ENDPOINTS
 _trains_cache = {"data": {}, "expires": 0}

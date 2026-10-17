@@ -2,7 +2,7 @@
 
 An interactive DC rail dashboard built with FastAPI and vanilla JS, using data from the [WMATA API](https://developer.wmata.com).
 
-![DC Metro Dashboard showing the full-screen map and station panel](/screenshots/Example_Screenshot.png)
+![DC Commute showing the full-screen map and station panel](/screenshots/Example_Screenshot.png)
 
 ## Features
 
@@ -66,15 +66,21 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ## Deploying
 
-Set `WMATA_API_KEY` as a secret environment variable on the host rather than uploading a `.env` file.
-Most hosts run the app behind a proxy, so start uvicorn with `--proxy-headers --forwarded-allow-ips='*'`
-so the rate limit sees each visitor's IP instead of the proxy's.
+Set `WMATA_API_KEY` as a secret environment variable on the host rather than uploading a `.env` file,
+and use this start command:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+```
+
+Most hosts run the app behind a proxy; the last two flags let the rate limit see each visitor's IP
+instead of the proxy's.
 
 ## Stack
 
-- **Backend:** FastAPI (Python) — proxies and cleans WMATA API responses
+- **Backend:** FastAPI (Python) — fetches, caches and reshapes WMATA data for the page
 - **Frontend:** Vanilla JS and CSS, no build step; Leaflet for the map, with leaflet-polylineoffset to draw shared track side by side
-- **Data:** [WMATA API](https://developer.wmata.com) — real-time train predictions, station data, incidents
+- **Data:** [WMATA API](https://developer.wmata.com) — train predictions, station data, incidents
 
 > **Note:** This is a personal learning project and is not affiliated with or endorsed by
 > the Washington Metropolitan Area Transit Authority (WMATA). It uses data from the
