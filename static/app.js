@@ -11,6 +11,7 @@ const tripResult = document.getElementById("trip-result");
 
 const LINE_ORDER = ["RD", "BL", "OR", "SV", "GR", "YL"];
 const LINE_NAMES = { RD: "Red", BL: "Blue", OR: "Orange", SV: "Silver", GR: "Green", YL: "Yellow" };
+const LINE_WEIGHT = 6;
 
 const map = L.map("map").setView([38.9, -77.03], 11);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -20,15 +21,54 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 const entranceLayer = L.layerGroup().addTo(map);
 
+function segmentKey(a, b) {
+  return [a.join(), b.join()].sort().join("|");
+}
+
 async function loadMap() {
   const linesRes = await fetch("/api/lines");
   const lines = await linesRes.json();
 
-  for (const line of lines) {
-    const pathRes = await fetch("/api/path/" + line.code);
-    const path = await pathRes.json();
-    const coords = path.map(s => [s.lat, s.lon]);
-    L.polyline(coords, { color: line.color, weight: 4, opacity: 0.8 }).addTo(map);
+  const paths = await Promise.all(
+    lines.map(line => fetch("/api/path/" + line.code).then(r => r.json()))
+  );
+
+  // Group every station-to-station segment by the lines that run on it.
+  // Keys use coordinates so transfer stations (two codes, one spot) match.
+  // Offsets are relative to drawing direction, so each line is first turned
+  // to travel the same way as lines it shares track with; otherwise the
+  // side-by-side order would mirror from one segment to the next.
+  const segments = new Map();
+  const ordered = lines
+    .map((line, i) => ({ line, coords: paths[i].map(s => [s.lat, s.lon]) }))
+    .sort((x, y) => LINE_ORDER.indexOf(x.line.code) - LINE_ORDER.indexOf(y.line.code));
+
+  for (let { line, coords } of ordered) {
+    let agree = 0;
+    for (let j = 0; j < coords.length - 1; j++) {
+      const seg = segments.get(segmentKey(coords[j], coords[j + 1]));
+      if (seg) agree += seg.coords[0].join() === coords[j].join() ? 1 : -1;
+    }
+    if (agree < 0) coords = [...coords].reverse();
+
+    for (let j = 0; j < coords.length - 1; j++) {
+      const key = segmentKey(coords[j], coords[j + 1]);
+      if (!segments.has(key)) segments.set(key, { coords: [coords[j], coords[j + 1]], lines: [] });
+      segments.get(key).lines.push(line);
+    }
+  }
+
+  // Draw shared segments side by side, centered on the track
+  for (const { coords, lines: segLines } of segments.values()) {
+    segLines.forEach((line, i) => {
+      L.polyline(coords, {
+        color: line.color,
+        weight: LINE_WEIGHT,
+        opacity: 0.9,
+        lineCap: "butt",
+        offset: (i - (segLines.length - 1) / 2) * LINE_WEIGHT,
+      }).addTo(map);
+    });
   }
 
   for (const s of allStations) {
