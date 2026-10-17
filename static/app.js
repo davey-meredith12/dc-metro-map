@@ -18,6 +18,8 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }).addTo(map);
 
+const entranceLayer = L.layerGroup().addTo(map);
+
 async function loadMap() {
   const [linesRes, stationsRes] = await Promise.all([
     fetch("/api/lines"),
@@ -132,6 +134,7 @@ async function loadIncidents(stationLines) {
 
 async function loadTrains() {
   const code = stationInput.value.trim();
+  loadEntrances(code);
   message.className = "muted";
   message.textContent = "Loading...";
   tbody.replaceChildren();
@@ -208,6 +211,28 @@ async function loadTrip() {
     tripResult.innerHTML = `<span class="error">Could not load trip: ${error.message}</span>`;
   }
 }
+
+async function loadEntrances(stationCode) {
+  entranceLayer.clearLayers();
+  if (!stationCode) return;
+  try {
+    const response = await fetch("/api/entrances/" + encodeURIComponent(stationCode));
+    if (!response.ok) return;
+    const entrances = await response.json();
+    for (const entrance of entrances) {
+      L.circleMarker([entrance.lat, entrance.lon], {
+        radius: 6,
+        color: "#fff",
+        fillColor: "#e6a817",
+        fillOpacity: 0.9,
+        weight: 2,
+      })
+        .addTo(entranceLayer)
+        .bindPopup(`<strong>${entrance.name}</strong><br>${entrance.description}`);
+    }
+  } catch (_) {}
+}
+
 
 tripForm.addEventListener("submit", (event) => {
   event.preventDefault();

@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 
 from contextlib import asynccontextmanager
@@ -38,6 +39,16 @@ async def lifespan(app: FastAPI):
             if c["StationCode"] and c["StationCode"] in coords
         ]
     _static_cache["routes"] = routes
+
+    entrances_res = requests.get(ENTRANCES_URL, headers=headers, timeout=10)
+    entrances_res.raise_for_status()
+    entrances_by_station = {}
+    for entrance in entrances_res.json()["Entrances"]:
+        for key in ("StationCode1", "StationCode2"):
+            code = entrance.get(key)
+            if code:
+                entrances_by_station.setdefault(code, []).append(clean_entrance(entrance))
+    _static_cache["entrances"] = entrances_by_station
 
     yield
 
@@ -147,25 +158,39 @@ def get_trains(station: str):
 def get_stations():
     return _static_cache["stations"]
 
+_incidents_cache = {"data": None, "expires": 0}
+
 @app.get("/api/incidents")
 def get_incidents():
+    if time.time() < _incidents_cache["expires"]:
+        return _incidents_cache["data"]
     response = requests.get(
         INCIDENTS_URL,
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
     response.raise_for_status()
-    return [clean_incident(incident) for incident in response.json()["Incidents"]]
+    _incidents_cache["data"] = [clean_incident(incident) for incident in response.json()["Incidents"]]
+    _incidents_cache["expires"] = time.time() + 120
+    return _incidents_cache["data"]
+
+_elevator_cache = {}
 
 @app.get("/api/elevators/{station}")
 def get_elevator_incidents(station: str):
+    code = station.upper()
+    entry = _elevator_cache.get(code)
+    if entry and time.time() < entry["expires"]:
+        return entry["data"]
     response = requests.get(
-        ELEVATOR_INCIDENTS_URL + station.upper(),
+        ELEVATOR_INCIDENTS_URL + code,
         headers={"api_key": os.environ["WMATA_API_KEY"]},
         timeout=10,
     )
     response.raise_for_status()
-    return [clean_elevator_incident(elevator_incident) for elevator_incident in response.json()["ElevatorIncidents"]]
+    data = [clean_elevator_incident(elevator_incident) for elevator_incident in response.json()["ElevatorIncidents"]]
+    _elevator_cache[code] = {"data": data, "expires": time.time() + 120}
+    return data
 
 @app.get("/api/lines")
 def get_lines():
@@ -194,14 +219,7 @@ def get_trip(from_code: str, to_code: str):
 
 @app.get("/api/entrances/{station}")
 def get_entrances(station: str):
-    response = requests.get(
-        ENTRANCES_URL,
-        params={"StationCode": station.upper()},
-        headers={"api_key": os.environ["WMATA_API_KEY"]},
-        timeout=10,
-    )
-    response.raise_for_status()
-    return [clean_entrance(entrance) for entrance in response.json()["Entrances"]]
+    return _static_cache["entrances"].get(station.upper(), [])
 
 @app.get("/")
 def home():
