@@ -30,6 +30,7 @@ const els = {
 
 // ---------- Helpers ----------
 
+// Create a DOM element with an optional class and text content.
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -37,6 +38,7 @@ function el(tag, className, text) {
   return node;
 }
 
+// Round colored badge showing a line's code (e.g. RD), used in the station card and arrivals.
 function lineBadge(code) {
   const badge = el("span", "line-badge", code);
   badge.dataset.line = code;
@@ -45,6 +47,7 @@ function lineBadge(code) {
   return badge;
 }
 
+// Row of small colored dots for a station's lines, used in search results.
 function lineDots(lines) {
   const wrap = el("span", "line-badges");
   for (const code of lines) {
@@ -55,10 +58,12 @@ function lineDots(lines) {
   return wrap;
 }
 
+// Sort line codes into the standard Red, Blue, Orange, Silver, Green, Yellow order.
 function sortLines(lines) {
   return [...lines].sort((a, b) => LINE_ORDER.indexOf(a) - LINE_ORDER.indexOf(b));
 }
 
+// Lowercase and strip punctuation/spaces so search matches "lenfant" to "L'Enfant".
 function normalize(text) {
   return text.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -80,10 +85,12 @@ const stationLayer = L.layerGroup().addTo(map);
 const entranceLayer = L.layerGroup().addTo(map);
 let highlight = null;
 
+// Direction-independent key for the track segment between two coordinates.
 function segmentKey(a, b) {
   return [a.join(), b.join()].sort().join("|");
 }
 
+// Draw every line (side by side where lines share track) and a clickable marker for each station.
 async function loadMap() {
   const linesRes = await fetch("/api/lines");
   const lines = await linesRes.json();
@@ -147,6 +154,7 @@ async function loadMap() {
   if (state.selected) highlightStation(state.selected, false);
 }
 
+// Ring the selected station on the map and move the map to it.
 function highlightStation(station, animate) {
   if (highlight) highlight.remove();
   highlight = L.circleMarker([station.lat, station.lon], {
@@ -163,6 +171,7 @@ function highlightStation(station, animate) {
   else map.setView(target, 14);
 }
 
+// Show the selected station's entrances on the map as amber dots with popups.
 async function loadEntrances(stationCode) {
   entranceLayer.clearLayers();
   if (!stationCode) return;
@@ -186,6 +195,7 @@ async function loadEntrances(stationCode) {
 
 // ---------- Stations ----------
 
+// Fetch stations, merge transfer pairs into one station each, and index them by every code.
 async function loadStations() {
   const response = await fetch("/api/stations");
   const raw = await response.json();
@@ -207,6 +217,8 @@ async function loadStations() {
 
 // ---------- Search combobox ----------
 
+// Turn a .combo element into an accessible station search box. Calls onSelect
+// with the chosen station; returns set/get for the current station.
 function createCombo(root, onSelect) {
   const input = root.querySelector(".combo-input");
   const list = root.querySelector(".combo-list");
@@ -218,11 +230,13 @@ function createCombo(root, onSelect) {
   let active = -1;
   let current = null;
 
+  // Show the results list.
   function open() {
     list.hidden = false;
     input.setAttribute("aria-expanded", "true");
   }
 
+  // Hide the results list and clear the keyboard highlight.
   function close() {
     list.hidden = true;
     input.setAttribute("aria-expanded", "false");
@@ -230,6 +244,7 @@ function createCombo(root, onSelect) {
     active = -1;
   }
 
+  // Redraw the results list, marking the keyboard-highlighted option.
   function render() {
     list.replaceChildren();
     if (matches.length === 0) {
@@ -253,6 +268,7 @@ function createCombo(root, onSelect) {
     }
   }
 
+  // Match stations against the typed text, names that start with it first.
   function filter() {
     const q = normalize(input.value);
     matches = q
@@ -265,6 +281,7 @@ function createCombo(root, onSelect) {
     open();
   }
 
+  // Pick a station from the list and notify the caller.
   function choose(station) {
     set(station);
     close();
@@ -272,6 +289,7 @@ function createCombo(root, onSelect) {
     onSelect(station);
   }
 
+  // Set the current station and show its name in the input.
   function set(station) {
     current = station;
     input.value = station ? station.name : "";
@@ -314,6 +332,8 @@ const tripToCombo = createCombo(document.getElementById("trip-to"), s => {
 
 // ---------- Selecting a station ----------
 
+// Make a station the current one: update the URL, panel, map, and trip planner,
+// then load its arrivals, alerts, and entrances.
 function selectStation(code, { pushHistory = true, animate = true } = {}) {
   const station = state.byCode.get(code);
   if (!station) return;
@@ -354,6 +374,7 @@ window.addEventListener("popstate", () => {
 
 // ---------- Arrivals ----------
 
+// Show placeholder rows while a newly selected station's arrivals load.
 function renderSkeleton() {
   const box = el("div", "direction");
   box.appendChild(el("div", "direction-title", "Loading arrivals"));
@@ -368,6 +389,7 @@ function renderSkeleton() {
   els.arrivals.replaceChildren(box);
 }
 
+// Build the right-hand cell of an arrival row: Boarding, Arriving, or minutes away.
 function minutesCell(train) {
   const cell = el("div", "train-min");
   if (train.boarding) {
@@ -385,6 +407,7 @@ function minutesCell(train) {
   return cell;
 }
 
+// Render arrivals as one box per direction, up to TRAINS_PER_DIRECTION trains each.
 function renderArrivals(trains) {
   // Skip non-passenger moves and trains without a line
   trains = trains.filter(t => LINE_NAMES[t.line]);
@@ -419,6 +442,7 @@ function renderArrivals(trains) {
   els.arrivals.replaceChildren(...boxes);
 }
 
+// Show an error in the arrivals area, unless older data is already on screen.
 function renderArrivalsError(message) {
   // Keep the last good data on screen if we have it
   if (state.lastUpdated) return;
@@ -427,6 +451,7 @@ function renderArrivalsError(message) {
 
 // ---------- Alerts & outages ----------
 
+// Clear the alert and outage rows and show their "Checking…" state.
 function resetNotices() {
   for (const box of [els.alerts, els.outages]) {
     box.classList.remove("has-items");
@@ -437,6 +462,7 @@ function resetNotices() {
   els.outages.querySelector(".notice-text").textContent = "Checking elevators & escalators…";
 }
 
+// Fill an alert/outage row: a muted message when empty, or an expandable amber summary.
 function renderNotice(box, items, emptyText, label) {
   const body = box.querySelector(".notice-body");
   const text = box.querySelector(".notice-text");
@@ -462,6 +488,7 @@ for (const box of [document.getElementById("alerts"), document.getElementById("o
   });
 }
 
+// Load rail alerts for the station's lines and its elevator/escalator outages.
 async function loadNotices(station) {
   try {
     const [incRes, elevRes] = await Promise.all([
@@ -493,6 +520,8 @@ async function loadNotices(station) {
 
 // ---------- Refresh loop ----------
 
+// Reload arrivals and notices for the current station, ignoring responses for a
+// station that is no longer selected.
 async function refresh() {
   const station = state.selected;
   if (!station) return;
@@ -516,6 +545,7 @@ async function refresh() {
   loadNotices(station);
 }
 
+// Update the "Updated Xs ago" text in the station card.
 function renderUpdated() {
   if (!state.lastUpdated) {
     els.updated.textContent = "";
@@ -538,6 +568,7 @@ document.addEventListener("visibilitychange", () => {
 
 // ---------- Trip planner ----------
 
+// Show travel time and fares for the trip planner's From and To stations.
 async function loadTrip() {
   const { tripFrom: from, tripTo: to } = state;
   if (!from || !to) {
@@ -583,6 +614,7 @@ els.tripSwap.addEventListener("click", () => {
 
 // ---------- Startup ----------
 
+// Pick the startup station: URL hash, then the last station visited, then Metro Center.
 function initialStation() {
   const fromHash = location.hash.slice(1).toUpperCase();
   if (state.byCode.has(fromHash)) return fromHash;

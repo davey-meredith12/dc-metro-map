@@ -16,6 +16,7 @@ _static_cache = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Load data that rarely changes (stations, lines, route paths, entrances) from WMATA once at startup and cache it."""
     headers = {"api_key": os.environ["WMATA_API_KEY"]}
     stations_res = requests.get(STATIONS_URL, headers=headers, timeout=10)
     stations_res.raise_for_status()
@@ -79,6 +80,7 @@ LINE_COLORS = {
 
 # HELPERS
 def clean_minutes(raw):
+    """Convert WMATA's minutes field to an int: ARR/BRD become 0, anything non-numeric becomes None."""
     if raw == "ARR" or raw == "BRD":
         return 0
     try:
@@ -87,6 +89,7 @@ def clean_minutes(raw):
         return None
 
 def clean_train(train):
+    """Reshape a WMATA train prediction into the fields the frontend uses."""
     return {
         "line": train["Line"],
         "destination": train["DestinationName"],
@@ -98,6 +101,7 @@ def clean_train(train):
     }
 
 def clean_station(station):
+    """Reshape a WMATA station, collecting its line codes into a list and keeping its transfer partner code."""
     lines = []
     if station["LineCode1"]:
         lines.append(station["LineCode1"])
@@ -118,6 +122,7 @@ def clean_station(station):
     }
 
 def clean_incident(incident):
+    """Reshape a WMATA rail incident, splitting its affected lines into a list."""
     lines_affected = [l for l in incident["LinesAffected"].split("; ") if l]
     
     return{
@@ -127,6 +132,7 @@ def clean_incident(incident):
     }
 
 def clean_elevator_incident(elevator_incident):
+    """Reshape a WMATA elevator/escalator outage."""
     return{
         "location_description": elevator_incident["LocationDescription"],
         "symptom_description": elevator_incident["SymptomDescription"],
@@ -134,6 +140,7 @@ def clean_elevator_incident(elevator_incident):
     }
 
 def clean_line(line):
+    """Reshape a WMATA line and attach its map color."""
     return{
         "code": line["LineCode"],
         "display_name": line["DisplayName"],
@@ -143,6 +150,7 @@ def clean_line(line):
     }
 
 def clean_entrance(entrance):
+    """Reshape a WMATA station entrance."""
     return {
         "name": entrance["Name"],
         "lat": entrance["Lat"],
@@ -151,7 +159,8 @@ def clean_entrance(entrance):
     }
 
 def station_codes(station):
-    # Transfer stations have one code per set of platforms; include the partner
+    """Return a station code plus its transfer partner, if any. Transfer stations
+    have one code per set of platforms (e.g. Metro Center is A01 and C01)."""
     code = station.upper()
     partner = _static_cache["together"].get(code)
     return [code, partner] if partner else [code]
@@ -159,6 +168,7 @@ def station_codes(station):
 # ENDPOINTS
 @app.get("/api/trains/{station}")
 def get_trains(station: str):
+    """Live next-train predictions for a station, covering both levels at transfer stations."""
     response = requests.get(
         STATION_PREDICTION_URL + ",".join(station_codes(station)),
         headers={"api_key": os.environ["WMATA_API_KEY"]},
@@ -169,12 +179,14 @@ def get_trains(station: str):
 
 @app.get("/api/stations")
 def get_stations():
+    """All stations with name, code, coordinates, lines served, and transfer partner code."""
     return _static_cache["stations"]
 
 _incidents_cache = {"data": None, "expires": 0}
 
 @app.get("/api/incidents")
 def get_incidents():
+    """Active rail incidents system-wide, cached for 2 minutes."""
     if time.time() < _incidents_cache["expires"]:
         return _incidents_cache["data"]
     response = requests.get(
@@ -191,6 +203,7 @@ _elevator_cache = {}
 
 @app.get("/api/elevators/{station}")
 def get_elevator_incidents(station: str):
+    """Elevator and escalator outages at a station (both levels at transfer stations), cached for 2 minutes."""
     code = station.upper()
     entry = _elevator_cache.get(code)
     if entry and time.time() < entry["expires"]:
@@ -209,14 +222,17 @@ def get_elevator_incidents(station: str):
 
 @app.get("/api/lines")
 def get_lines():
+    """All lines with display name, color, and terminal stations."""
     return _static_cache["lines"]
 
 @app.get("/api/path/{line_code}")
 def get_path(line_code: str):
+    """Ordered stations along a line, used to draw it on the map."""
     return _static_cache["routes"].get(line_code.upper(), [])
 
 @app.get("/api/trip/{from_code}/{to_code}")
 def get_trip(from_code: str, to_code: str):
+    """Travel time and peak, off-peak, and senior fares between two stations."""
     response = requests.get(
         STATION_TO_STATION_URL,
         params={"FromStationCode": from_code.upper(), "ToStationCode": to_code.upper()},
@@ -234,8 +250,10 @@ def get_trip(from_code: str, to_code: str):
 
 @app.get("/api/entrances/{station}")
 def get_entrances(station: str):
+    """Physical entrance locations for a station."""
     return _static_cache["entrances"].get(station.upper(), [])
 
 @app.get("/")
 def home():
+    """Serve the frontend page."""
     return FileResponse("index.html")
