@@ -295,9 +295,9 @@ function createCombo(root, onSelect) {
     input.value = station ? station.name : "";
   }
 
-  input.addEventListener("focus", () => { input.select(); filter(); });
+  input.addEventListener("focus", () => { startSearchMode(root); input.select(); filter(); });
   input.addEventListener("input", filter);
-  input.addEventListener("blur", () => { close(); set(current); });
+  input.addEventListener("blur", () => { close(); set(current); endSearchMode(); });
   input.addEventListener("keydown", e => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -318,6 +318,49 @@ function createCombo(root, onSelect) {
 
   return { set, get: () => current };
 }
+
+// ---------- Phone search mode ----------
+
+// On phones the keyboard covers the bottom of the screen, hiding search results.
+// While a search box has focus, hide the map, scroll the box to the top of the
+// panel, and size its results to fit above the keyboard.
+const phoneLayout = window.matchMedia("(max-width: 760px)");
+const appEl = document.querySelector(".app");
+let searchRoot = null;
+
+function startSearchMode(root) {
+  if (!phoneLayout.matches) return;
+  searchRoot = root;
+  appEl.classList.add("searching");
+  root.scrollIntoView({ block: "start" });
+  fitSearchList();
+}
+
+function endSearchMode() {
+  if (!searchRoot) return;
+  searchRoot.querySelector(".combo-list").style.maxHeight = "";
+  searchRoot = null;
+  appEl.classList.remove("searching");
+  // The map was hidden, so Leaflet needs its size again before flying to a station
+  map.invalidateSize();
+}
+
+// Limit the results list to the visible space between the search box and the keyboard.
+function fitSearchList() {
+  const vv = window.visualViewport;
+  if (!searchRoot || !vv) return;
+  const inputBottom = searchRoot.querySelector(".combo-input").getBoundingClientRect().bottom;
+  const space = vv.offsetTop + vv.height - inputBottom - 12;
+  searchRoot.querySelector(".combo-list").style.maxHeight = Math.max(space, 120) + "px";
+}
+
+// The keyboard opening or closing resizes the visual viewport
+window.visualViewport?.addEventListener("resize", () => {
+  if (!searchRoot) return;
+  // iOS can pan the page up when the keyboard opens; undo it so the box stays in view
+  window.scrollTo(0, 0);
+  fitSearchList();
+});
 
 const stationCombo = createCombo(document.getElementById("station-search"), s => selectStation(s.code));
 const tripFromCombo = createCombo(document.getElementById("trip-from"), s => {

@@ -98,6 +98,16 @@ button, input { font: inherit; color: inherit; }
     background: var(--border);
     margin: 8px auto 0;
   }
+
+  /* While a search box has focus, hide the map and move the box to the top
+     so its results fit above the on-screen keyboard */
+  .app.searching { grid-template-rows: 0 1fr; }
+  .app.searching #map { display: none; }
+  .app.searching #panel { margin-top: 0; }
+  .app.searching .station-card { position: static; }
+  .app.searching .combo { scroll-margin-top: 12px; }
+  /* Spacer so the trip planner's boxes can scroll all the way up */
+  .app.searching #panel::after { content: ""; flex-shrink: 0; height: 100dvh; }
 }
 
 /* ---------- Header & search ---------- */
