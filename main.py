@@ -5,7 +5,7 @@ import requests
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from dotenv import load_dotenv
@@ -311,7 +311,13 @@ def get_entrances(station: str):
     """Physical entrance locations for a station."""
     return _static_cache["entrances"].get(station.upper(), [])
 
+# Added to the CSS/JS URLs so browsers fetch fresh copies after each deploy.
+# Render sets RENDER_GIT_COMMIT; locally, fall back to the server start time.
+ASSET_VERSION = os.environ.get("RENDER_GIT_COMMIT", "")[:7] or str(int(time.time()))
+
 @app.get("/")
 def home():
-    """Serve the frontend page."""
-    return FileResponse("index.html")
+    """Serve the frontend page, with versioned asset URLs."""
+    with open("index.html") as f:
+        html = f.read().replace("__VERSION__", ASSET_VERSION)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
